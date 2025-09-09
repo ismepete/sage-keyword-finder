@@ -69,13 +69,42 @@
             <h1><div class="logo"></div>Unified Search Intelligence Tool</h1>
             <p>AI-Powered Strategic Research for Content & Marketing</p>
             <div class="controls">
-                <div class="control-group"><label for="topic">Vertical or Topic</label><input type="text" id="topic" placeholder="e.g., Making Tax Digital (UK)"></div>
-                <div class="control-group"><label for="targetProduct">Target Sage Product</label><select id="targetProduct"><option value="">Select a Product</option><option value="Sage Intacct" selected>Sage Intacct</option><option value="Sage Accounting">Sage Accounting</option></select></div>
-                <div class="control-group"><label for="country">Market</label><select id="country"><option value="us">🇺🇸 United States</option><option value="gb">🇬🇧 United Kingdom</option></select></div>
-                <div class="control-group"><label for="minVolume">Min Volume</label><input type="number" id="minVolume" value="100"></div>
-                <div class="control-group"><label for="Keywords to Fetch">Keywords to Fetch</label><input type="number" id="keywordLimit" value="20"></div>
-                <div class="control-group"><label for="resultsLimit">Results to Check</label><input type="number" id="resultsLimit" value="20"></div>
-                <div class="control-group"><button id="analyzeBtn">🔍 Find Opportunities</button></div>
+                <div class="control-group">
+                    <label for="topic">Vertical or Topic</label>
+                    <input type="text" id="topic" placeholder="e.g., Making Tax Digital (UK)">
+                </div>
+                <div class="control-group">
+                    <label for="targetProduct">Target Sage Product</label>
+                    <select id="targetProduct">
+                        <option value="">Select a Product</option>
+                        <option value="Sage Intacct" selected>Sage Intacct</option>
+                        <option value="Sage Accounting">Sage Accounting</option>
+                        <option value="Sage 50">Sage 50</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label for="country">Market</label>
+                    <select id="country">
+                        <option value="us">🇺🇸 United States</option>
+                        <option value="gb">🇬🇧 United Kingdom</option>
+                        <option value="fr">🇫🇷 France</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label for="minVolume">Min Volume</label>
+                    <input type="number" id="minVolume" value="100">
+                </div>
+                <div class="control-group">
+                    <label for="Keywords to Fetch">Keywords to Fetch</label>
+                    <input type="number" id="keywordLimit" value="20">
+                </div>
+                <div class="control-group">
+                    <label for="resultsLimit">Results to Check</label>
+                    <input type="number" id="resultsLimit" value="20">
+                </div>
+                <div class="control-group">
+                    <button id="analyzeBtn">🔍 Find Opportunities</button>
+                </div>
             </div>
         </div>
         <div id="status" class="status info">Ready to begin.</div>
@@ -229,17 +258,16 @@
                 opportunityList.innerHTML = '<div class="opportunity-item"><p>No high-value opportunities found. Try a broader topic or adjust the filters.</p></div>';
                 return;
             }
+            const currentCountry = document.getElementById('country').value; // Get the country from the dropdown
+
             opportunities.forEach((opp, index) => {
                 const item = document.createElement('div');
                 item.className = 'opportunity-item';
                 item.id = `opp-${index}`;
                 const { aiInsights = {} } = opp;
-                const { paidInsights = {} } = aiInsights;
                 const strategicContextHTML = aiInsights.aiPowered && aiInsights.strategicContext ? `<div class="strategic-context"><strong>Strategic Angle:</strong> ${aiInsights.strategicContext}</div>` : '';
                 const intent = aiInsights.intent || 'N/A';
                 const category = aiInsights.category ? `<span class="cluster-badge">${aiInsights.category}</span>` : '';
-                const paidStrategy = paidInsights.paidStrategy || 'Organic';
-                const getPaidStrategyClass = (s) => `strategy-${(s || 'organic').toLowerCase().replace(' ', '_')}`;
 
                 item.innerHTML = `
                     <div class="opportunity-header">
@@ -256,8 +284,8 @@
                         <div class="detail-item"><div class="detail-label">Difficulty</div><div class="detail-value">${opp.difficulty || 'N/A'}</div></div>
                         <div class="detail-item"><div class="detail-label">Sage Rank</div><div class="detail-value">${opp.sagePosition ? `#${opp.sagePosition}` : 'Not ranking'}</div></div>
                         <div class="detail-item"><div class="detail-label">Traffic Potential</div><div class="detail-value">${(opp.estimatedTraffic || 0).toLocaleString()}/mo</div></div>
-                        <div class="detail-item"><div class="detail-label">CPC</div><div class="detail-value">$${(opp.cpc || 0).toFixed(2)}</div></div>
                         <div class="detail-item"><div class="detail-label">Potential Revenue</div><div class="detail-value">${opp.currency || '$'}${opp.monthlyRevenue.toLocaleString()}/mo</div></div>
+                        <div class="detail-item"><div class="detail-label">CPC</div><div class="detail-value">$${(opp.cpc || 0).toFixed(2)}</div></div>
                     </div>
                     <button class="lateral-topics-btn" onclick="getLateralTopics(${index})">Generate Blog Post Ideas ✍️</button>
                     <button class="geo-insights-btn" onclick="getGeoInsights(${index})">Get GEO Insights 🤖</button>
@@ -267,6 +295,7 @@
                 opportunityList.appendChild(item);
                 item.dataset.keyword = opp.keyword;
                 item.dataset.reasoning = aiInsights.reasoning;
+                item.dataset.country = currentCountry; // <-- Store the country on the element
             });
         }
 
@@ -278,11 +307,12 @@
             button.textContent = 'Thinking...';
             const keyword = oppItem.dataset.keyword;
             const reasoning = oppItem.dataset.reasoning;
+            const country = oppItem.dataset.country; // <-- Get the stored country
             try {
                 const response = await fetch('/api/expand', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ keyword, reasoning })
+                    body: JSON.stringify({ keyword, reasoning, country }) // <-- Send the country to the backend
                 });
                 if (!response.ok) throw new Error('Server error');
                 const data = await response.json();
@@ -304,13 +334,14 @@
             const button = oppItem.querySelector('.geo-insights-btn');
             const container = document.getElementById(`geo-${index}`);
             const keyword = oppItem.dataset.keyword;
+            const country = oppItem.dataset.country; // <-- Get the stored country
             button.disabled = true;
             button.textContent = 'Fetching...';
             try {
                 const response = await fetch('/api/geo-insights', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ keyword })
+                    body: JSON.stringify({ keyword, country }) // <-- Send the country to the backend
                 });
                 if (!response.ok) throw new Error('Server error');
                 const data = await response.json();
