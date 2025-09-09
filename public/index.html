@@ -170,7 +170,7 @@
                             const li = document.createElement('li');
                             li.textContent = item;
                             subTopicsList.appendChild(li);
-});
+                        });
                         deconstruction.pain_points.forEach(item => {
                             const li = document.createElement('li');
                             li.textContent = item;
@@ -255,10 +255,9 @@
                         <div class="detail-item"><div class="detail-label">Search Volume</div><div class="detail-value">${(opp.searchVolume || 0).toLocaleString()}</div></div>
                         <div class="detail-item"><div class="detail-label">Difficulty</div><div class="detail-value">${opp.difficulty || 'N/A'}</div></div>
                         <div class="detail-item"><div class="detail-label">Sage Rank</div><div class="detail-value">${opp.sagePosition ? `#${opp.sagePosition}` : 'Not ranking'}</div></div>
-                        <div class="detail-item"><div class="detail-label">Commercial Intent</div><div class="detail-value">${aiInsights.commercial_value}/100</div></div>
                         <div class="detail-item"><div class="detail-label">Traffic Potential</div><div class="detail-value">${(opp.estimatedTraffic || 0).toLocaleString()}/mo</div></div>
                         <div class="detail-item"><div class="detail-label">CPC</div><div class="detail-value">$${(opp.cpc || 0).toFixed(2)}</div></div>
-                        <div class="detail-item"><div class="detail-label">Paid Strategy</div><div class="detail-value"><span class="strategy-badge ${getPaidStrategyClass(paidStrategy)}">${paidStrategy}</span></div></div>
+                        <div class="detail-item"><div class="detail-label">Potential Revenue</div><div class="detail-value">${opp.currency || '$'}${opp.monthlyRevenue.toLocaleString()}/mo</div></div>
                     </div>
                     <button class="lateral-topics-btn" onclick="getLateralTopics(${index})">Generate Blog Post Ideas ✍️</button>
                     <button class="geo-insights-btn" onclick="getGeoInsights(${index})">Get GEO Insights 🤖</button>

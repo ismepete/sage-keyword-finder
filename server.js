@@ -18,7 +18,43 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.get('/', (req, res) => { res.sendFile(path.join(__dirname, 'public', 'index.html')); });
 
 // --- Constants & Helper Functions ---
-const REVENUE_MODELS = { transactional: { ctr: 0.08, conversion: 0.02, customerValue: 30000 }, commercial: { ctr: 0.05, conversion: 0.005, customerValue: 30000 }, informational: { ctr: 0.03, conversion: 0.001, customerValue: 30000 }, comparison: { ctr: 0.06, conversion: 0.008, customerValue: 30000 }, navigational: { ctr: 0.01, conversion: 0.001, customerValue: 30000 } };
+// --- Constants & Helper Functions ---
+const PRODUCT_FINANCIALS = {
+    // UK Products
+    "Sage Accounting UK": { acv: 500, currency: '£' },
+    "Sage Intacct UK": { acv: 25000, currency: '£' },
+    // US Products (and fallbacks)
+    "Sage Intacct": { acv: 30000, currency: '$' },
+    "Sage Accounting": { acv: 500, currency: '$' } // Fallback, though noted as unused in US
+};
+
+const REALISTIC_POTENTIAL_CTR = {
+    transactional: 0.14,
+    comparison: 0.12,
+    commercial: 0.09,
+    informational: 0.05,
+    navigational: 0.07,
+    default: 0.08 // Fallback for any unknown intents
+};
+
+const CONVERSION_RATES = {
+    smb: { // Sage Accounting
+        transactional: 0.025,
+        comparison: 0.015,
+        commercial: 0.0075,
+        informational: 0.001,
+        navigational: 0.001,
+        default: 0.005
+    },
+    upperMidMarket: { // Sage Intacct
+        transactional: 0.0125,
+        comparison: 0.0075,
+        commercial: 0.004,
+        informational: 0.001,
+        navigational: 0.001,
+        default: 0.003
+    }
+};
 
 async function testOpenAI() { try { await openai.chat.completions.create({ model: "gpt-4o-mini", messages: [{ role: "user", content: "Test" }], max_tokens: 2 }); console.log("✅ OpenAI connection test successful."); return true; } catch (error) { console.error("❌ OpenAI connection test failed:", error); return false; } }
 
@@ -44,8 +80,36 @@ Respond ONLY with a valid JSON object: {"seed_keywords": []}`;
     } catch (error) { console.error(`❌ AI Seed Keyword Generation error:`, error.message); return []; }
 }
 
-async function evaluateKeywordWithAI(keyword, targetProduct) { const prompt = `You are an expert SEO strategist for Sage, specifically for their product "${targetProduct}". Analyze the keyword "${keyword}". Respond ONLY with a JSON object with this schema: {"category": "Company/Brand Name" | "Software Type" | "Accounting Concept" | "Problem/Task" | "Other", "is_branded": boolean, "brand_name": string | null, "intent": "Navigational" | "Informational" | "Comparison" | "Transactional", "commercial_value": number, "reasoning": "Brief explanation."}`; try { const response = await openai.chat.completions.create({ model: "gpt-4o", messages: [{ role: "system", content: "You are an SEO expert that only responds in valid JSON." }, { role: "user", content: prompt }], max_tokens: 400, temperature: 0.0, response_format: { type: "json_object" } }); return JSON.parse(response.choices[0].message.content); } catch (error) { console.error(`❌ AI evaluation error for "${keyword}":`, error.message); return null; } }
+async function evaluateKeywordWithAI(keyword, targetProduct, deconstructionResult) {
+    const prompt = `You are an expert SEO strategist for Sage, specifically for their product "${targetProduct}".
 
+Your task is to analyze the keyword: "${keyword}"
+
+**Instructions:**
+1.  **Determine the SINGLE PRIMARY user intent.** You MUST choose only one from this list:
+    - **Transactional:** The user wants to buy or sign up now (e.g., "buy accounting software", "sage intacct trial").
+    - **Commercial:** The user is researching solutions to buy soon (e.g., "best accounting software", "sage vs xero").
+    - **Informational:** The user is looking for information or answers, not a product (e.g., "what is double entry bookkeeping").
+    - **Navigational:** The user is trying to find a specific website (e.g., "sage login").
+2.  **Assess Vertical Relevance:** Score from 0-100 how relevant the keyword is to the core sub-topics and pain points of this vertical: ${JSON.stringify(deconstructionResult)}.
+3.  **Assess Commercial Value:** Score from 0-100 how likely the user is to become a high-value customer for Sage.
+
+Respond ONLY with a valid JSON object: {"category": "...", "is_branded": boolean, "brand_name": string | null, "intent": "...", "commercial_value": number, "vertical_relevance": number, "reasoning": "..."}.`;
+
+    try {
+        const response = await openai.chat.completions.create({
+            model: "gpt-4o",
+            messages: [{ role: "system", content: "You are an SEO expert that only responds in valid JSON and strictly follows instructions." }, { role: "user", content: prompt }],
+            max_tokens: 500,
+            temperature: 0.0,
+            response_format: { type: "json_object" }
+        });
+        return JSON.parse(response.choices[0].message.content);
+    } catch (error) {
+        console.error(`❌ AI evaluation error for "${keyword}":`, error.message);
+        return null;
+    }
+}
 async function generateStrategicContext(keyword, aiAnalysis) { const prompt = `For the keyword "${keyword}" (Intent: ${aiAnalysis.intent}, Commercial Value: ${aiAnalysis.commercial_value}/100), write a 1-2 sentence strategic angle for Sage, an accounting software company.`; try { const response = await openai.chat.completions.create({ model: "gpt-4o-mini", messages: [{ role: "user", content: prompt }], max_tokens: 100, temperature: 0.5 }); return response.choices[0].message.content.trim(); } catch (error) { console.error('AI context error:', error); return 'Strategic analysis unavailable'; } }
 
 async function expandLateralTopicsWithAI(keyword, reasoning) { const prompt = `You are a world-class content strategist. The user has identified "${keyword}" as a valuable keyword opportunity. The AI's reasoning was: "${reasoning}". Brainstorm a list of 5-7 distinct "lateral" content ideas that would be valuable for the same audience. Focus on: 1. Upstream Problems 2. Downstream Problems 3. Related Job-to-be-Done. Respond ONLY with a valid JSON object with the schema: {"lateral_topics": ["list of strings"]}`; try { const response = await openai.chat.completions.create({ model: "gpt-4o", messages: [{ role: "system", content: "You are a content strategist that only responds in valid JSON." }, { role: "user", content: prompt }], temperature: 0.7, response_format: { type: "json_object" } }); const result = JSON.parse(response.choices[0].message.content); return result.lateral_topics || []; } catch (error) { console.error(`❌ AI Lateral Topic Expansion error:`, error.message); return ["Error generating topics."]; } }
@@ -102,8 +166,67 @@ async function getGeoInsightsFromProfound(coreConcept) {
     } catch (error) { return []; }
 }
 
-function calculateStrategicScore(keyword, sagePosition, aiAnalysis) { const { commercial_value = 0, intent, category, is_branded } = aiAnalysis; const { volume = 0, keyword_difficulty: difficulty = 50 } = keyword; let score = 0; if (category === 'Problem/Task') score = 50; else if (category === 'Software Type') score = 45; else if (intent === 'Comparison') score = 40; else score = commercial_value * 0.5; if (intent === 'Transactional') score += 25; if (intent === 'Comparison') score += 15; if (difficulty <= 15) score += 20; else if (difficulty <= 40) score += 10; if (volume >= 1000) score += 5; if (sagePosition && sagePosition <= 3) score *= 0.1; if (is_branded && intent !== 'Comparison') score *= 0.2; return Math.round(Math.min(score, 100)); }
-function calculateIntentBasedRevenue(keyword, intent) { const model = REVENUE_MODELS[intent?.toLowerCase()] || REVENUE_MODELS.commercial; return { estimatedTraffic: Math.floor((keyword.volume || 0) * model.ctr), monthlyRevenue: Math.floor((keyword.volume || 0) * model.ctr * model.conversion * model.customerValue / 12), revenueModel: { intent, ...model } }; }
+function calculateStrategicScore(keyword, sagePosition, aiAnalysis) {
+    // Destructure the new vertical_relevance score, defaulting to 50 if it's missing for any reason.
+    const { commercial_value = 0, intent, category, is_branded, vertical_relevance = 50 } = aiAnalysis;
+    const { volume = 0, keyword_difficulty: difficulty = 50 } = keyword;
+
+    // --- NEW SCORING LOGIC ---
+    // The base score is now a weighted average, with Vertical Relevance being the most important factor.
+    let score = (vertical_relevance * 0.7) + (commercial_value * 0.3);
+
+    // Add bonuses for high-value user intent
+    if (intent === 'Transactional') score += 15;
+    if (intent === 'Comparison') score += 10;
+    
+    // Add a bonus for low keyword difficulty (quick wins)
+    if (difficulty <= 15) score += 20;
+    else if (difficulty <= 40) score += 10;
+
+    // A small bonus for very high search volume
+    if (volume >= 1000) score += 5;
+
+    // Penalize heavily if we already rank in the top 3
+    if (sagePosition && sagePosition <= 3) score *= 0.1;
+    
+    // Penalize branded keywords that aren't for competitor comparison
+    if (is_branded && intent !== 'Comparison') score *= 0.2;
+    
+    // Ensure the final score is a clean integer between 0 and 100.
+    return Math.round(Math.min(score, 100));
+}
+function calculateIntentBasedRevenue(keyword, intent, targetProduct, country) {
+    const lowerIntent = intent?.toLowerCase() || 'commercial';
+
+    // 1. Determine Product Tier and Financials
+    const productTier = targetProduct.includes('Intacct') ? 'upperMidMarket' : 'smb';
+    const productKey = country === 'gb' ? `${targetProduct} UK` : targetProduct;
+    const financials = PRODUCT_FINANCIALS[productKey] || PRODUCT_FINANCIALS[targetProduct];
+    const customerValue = financials.acv;
+
+    // 2. Look up CTR and CVR from our new models
+    const ctr = REALISTIC_POTENTIAL_CTR[lowerIntent] || REALISTIC_POTENTIAL_CTR.default;
+    const cvr = CONVERSION_RATES[productTier][lowerIntent] || CONVERSION_RATES[productTier].default;
+
+    // 3. Perform the calculations
+    const estimatedTraffic = Math.floor((keyword.volume || 0) * ctr);
+    const monthlyRevenue = Math.floor(estimatedTraffic * cvr * customerValue / 12);
+    
+    // 4. Return a rich object for display and debugging
+    return {
+        estimatedTraffic,
+        monthlyRevenue,
+        currency: financials.currency,
+        revenueModel: {
+            intent,
+            productTier,
+            ctr,
+            cvr,
+            customerValue
+        }
+    };
+}
+
 function calculatePaidInsights(keyword, cpc, difficulty, intent) { let basePaidCTR = 0.04, iMultiplier = 1.0, cMultiplier = 1.0; if (intent === 'transactional') iMultiplier = 1.25; else if (intent === 'informational') iMultiplier = 0.5; if (cpc > 3) cMultiplier = 0.8; else if (cpc > 1.5) cMultiplier = 0.9; else cMultiplier = 1.1; const paidCTR = basePaidCTR * iMultiplier * cMultiplier; const estimatedPaidClicks = Math.floor((keyword.volume || 0) * paidCTR); const monthlyPaidCost = Math.floor(estimatedPaidClicks * cpc); let paidStrategy = 'organic'; if (cpc > 3 && difficulty > 50) paidStrategy = 'paid_first'; else if (intent === 'transactional' && cpc > 2) paidStrategy = 'both'; else if (cpc > 1.5 && difficulty > 40) paidStrategy = 'both'; else if (difficulty < 30) paidStrategy = 'organic'; return { estimatedPaidClicks, monthlyPaidCost, paidStrategy }; }
 
 async function performFullAnalysis(jobId, options) {
@@ -120,7 +243,6 @@ async function performFullAnalysis(jobId, options) {
         deconstructionResult = await deconstructTopicWithAI(topic, targetProduct);
         if (!deconstructionResult) throw new Error('Failed to deconstruct the topic with AI.');
 
-        // --- NEW: Save intermediate results to the job object ---
         jobs[jobId].intermediateData = { deconstruction: deconstructionResult };
         
         jobs[jobId].progress = '🌱 Generating seed keywords...';
@@ -143,6 +265,7 @@ async function performFullAnalysis(jobId, options) {
             if (keyword.keyword.trim().split(/\s+/).length === 1) continue;
             
             const analysis = await evaluateKeywordWithAI(keyword.keyword, targetProduct, deconstructionResult);
+
             if (!analysis) continue;
             
             analysis.aiPowered = true;
@@ -165,9 +288,25 @@ async function performFullAnalysis(jobId, options) {
             const score = calculateStrategicScore(keyword, sagePosition, keyword.aiAnalysis);
             if (score >= 25) {
                 keyword.aiAnalysis.strategicContext = await generateStrategicContext(keyword.keyword, keyword.aiAnalysis);
-                const revenueData = calculateIntentBasedRevenue(keyword, keyword.aiAnalysis.intent);
+                const revenueData = calculateIntentBasedRevenue(keyword, keyword.aiAnalysis.intent, targetProduct, country);
                 const paidInsights = calculatePaidInsights(keyword, keyword.cpc ? keyword.cpc / 100 : 5.0, keyword.keyword_difficulty, keyword.aiAnalysis.intent);
-                finalOpportunities.push({ keyword: keyword.keyword, searchVolume: keyword.volume, difficulty: keyword.keyword_difficulty, competitorPosition: keyword.best_position, sagePosition, score, cpc: keyword.cpc ? keyword.cpc / 100 : 5.0, estimatedTraffic: revenueData.estimatedTraffic, monthlyRevenue: revenueData.monthlyRevenue, aiInsights: { ...keyword.aiAnalysis, revenueModel: revenueData, paidInsights }});
+                finalOpportunities.push({ 
+                    keyword: keyword.keyword, 
+                    searchVolume: keyword.volume, 
+                    difficulty: keyword.keyword_difficulty, 
+                    competitorPosition: keyword.best_position, 
+                    sagePosition, 
+                    score, 
+                    cpc: keyword.cpc ? keyword.cpc / 100 : 5.0, 
+                    estimatedTraffic: revenueData.estimatedTraffic, 
+                    monthlyRevenue: revenueData.monthlyRevenue,
+                    currency: revenueData.currency,
+                    aiInsights: { 
+                        ...keyword.aiAnalysis, 
+                        revenueModel: revenueData, 
+                        paidInsights 
+                    }
+                });
             }
             await new Promise(resolve => setTimeout(resolve, 500));
         }
