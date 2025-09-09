@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sage Topic Opportunity Finder</title>
+    <title>Sage Unified Search Intelligence Tool</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -19,6 +19,16 @@
         input, select, button { padding: 12px; border: 2px solid #333; border-radius: 8px; font-size: 1em; background: #1a1a1a; color: #fff; width: 100%; }
         button { background: #00FF70; color: #000; font-weight: 600; cursor: pointer; padding: 14px 32px; font-size: 0.95em; }
         button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .status { text-align: center; padding: 20px; margin: 20px 0; border-radius: 10px; font-weight: 600; border: 1px solid; }
+        .status.info { background: rgba(0, 255, 112, 0.1); color: #00FF70; border-color: #00FF70; }
+        .status.error { background: rgba(255, 99, 99, 0.1); color: #ff6363; border-color: #ff6363; }
+        .market-research-insights { display: none; background: rgba(26, 26, 26, 0.95); backdrop-filter: blur(10px); border-radius: 15px; padding: 25px; margin-top: 20px; border: 1px solid #333; }
+        .market-research-insights h3 { color: #63a2ff; margin-bottom: 20px; font-size: 1.4em; text-align: center; }
+        .research-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 25px; }
+        .research-section { border-top: none; padding-top: 0; }
+        .research-section h4 { color: #a0a0a0; font-size: 1.1em; margin-bottom: 10px; }
+        .research-section ul { list-style-type: none; padding: 0; }
+        .research-section li { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 5px; padding: 8px 12px; margin-bottom: 5px; font-size: 0.9em; color: #ccc; }
         .opportunities { display: none; background: rgba(26, 26, 26, 0.95); backdrop-filter: blur(10px); border-radius: 15px; padding: 25px; border: 1px solid #333; }
         .opportunities h3 { color: #00FF70; margin-bottom: 20px; font-size: 1.4em; }
         .opportunity-item { background: #1a1a1a; border-radius: 10px; padding: 20px; margin-bottom: 15px; border: 1px solid #333; }
@@ -38,9 +48,6 @@
         .detail-item { text-align: center; background: #333; padding: 10px; border-radius: 8px; }
         .detail-label { font-size: 0.8em; color: #999; }
         .detail-value { font-weight: 600; }
-        .status { text-align: center; padding: 20px; margin: 20px 0; border-radius: 10px; font-weight: 600; border: 1px solid; }
-        .status.info { background: rgba(0, 255, 112, 0.1); color: #00FF70; border-color: #00FF70; }
-        .status.error { background: rgba(255, 99, 99, 0.1); color: #ff6363; border-color: #ff6363; }
         .debug-panel { display: none; background: #1a1a1a; border-radius: 15px; padding: 25px; margin-top: 20px; border: 1px solid #444; }
         .debug-panel h3 { color: #ffc107; margin-bottom: 15px; }
         .debug-panel pre { background: #111; padding: 15px; border-radius: 8px; white-space: pre-wrap; word-wrap: break-word; font-size: 0.85em; max-height: 400px; overflow-y: auto;}
@@ -49,10 +56,6 @@
         .lateral-topics-container { margin-top: 15px; padding-top: 15px; border-top: 1px solid #444; }
         .lateral-topics-container ul { list-style-type: none; padding-left: 0; }
         .lateral-topics-container li { background: #2a2a2a; padding: 10px; border-radius: 5px; margin-bottom: 5px; }
-        .metric-with-tooltip { display: flex; align-items: center; gap: 5px; position: relative; justify-content: center; flex-direction: column; }
-        .tooltip-trigger { color: #00FF70; cursor: help; font-size: 0.9em; }
-        .tooltip { visibility: hidden; opacity: 0; position: absolute; bottom: 125%; left: 50%; transform: translateX(-50%); background: #333; color: #fff; padding: 12px 16px; border-radius: 8px; font-size: 0.85em; white-space: nowrap; z-index: 10; transition: opacity 0.2s; pointer-events: none; }
-        .metric-with-tooltip:hover .tooltip { visibility: visible; opacity: 1; }
         .list-heading { font-size: 0.9em; font-weight: 600; margin-top: 15px; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
         .list-heading.blog-heading { color: #00FF70; }
         .list-heading.geo-heading { color: #63a2ff; }
@@ -63,19 +66,38 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1><div class="logo"></div>Topic Opportunity Finder</h1>
+            <h1><div class="logo"></div>Unified Search Intelligence Tool</h1>
             <p>AI-Powered Strategic Research for Content & Marketing</p>
             <div class="controls">
                 <div class="control-group"><label for="topic">Vertical or Topic</label><input type="text" id="topic" placeholder="e.g., Making Tax Digital (UK)"></div>
-                <div class="control-group"><label for="targetProduct">Target Sage Product</label><select id="targetProduct"><option value="">Select a Product</option><option value="Sage Intacct">Sage Intacct</option><option value="Sage Accounting">Sage Accounting</option></select></div>
+                <div class="control-group"><label for="targetProduct">Target Sage Product</label><select id="targetProduct"><option value="">Select a Product</option><option value="Sage Intacct" selected>Sage Intacct</option><option value="Sage Accounting">Sage Accounting</option></select></div>
                 <div class="control-group"><label for="country">Market</label><select id="country"><option value="us">🇺🇸 United States</option><option value="gb">🇬🇧 United Kingdom</option></select></div>
                 <div class="control-group"><label for="minVolume">Min Volume</label><input type="number" id="minVolume" value="100"></div>
-                <div class="control-group"><label for="keywordLimit">Keywords to Fetch</label><input type="number" id="keywordLimit" value="200"></div>
+                <div class="control-group"><label for="Keywords to Fetch">Keywords to Fetch</label><input type="number" id="keywordLimit" value="20"></div>
                 <div class="control-group"><label for="resultsLimit">Results to Check</label><input type="number" id="resultsLimit" value="20"></div>
                 <div class="control-group"><button id="analyzeBtn">🔍 Find Opportunities</button></div>
             </div>
         </div>
         <div id="status" class="status info">Ready to begin.</div>
+
+        <div class="market-research-insights" id="marketResearchInsights" style="display: none;">
+            <h3>🧠 Market Research Insights</h3>
+            <div class="research-grid">
+                <div class="research-section">
+                    <h4>Target Personas</h4>
+                    <ul id="personasList"></ul>
+                </div>
+                <div class="research-section">
+                    <h4>Key Pain Points</h4>
+                    <ul id="painPointsList"></ul>
+                </div>
+                <div class="research-section">
+                    <h4>Core Sub-Topics</h4>
+                    <ul id="subTopicsList"></ul>
+                </div>
+            </div>
+        </div>
+
         <div class="opportunities" id="opportunities">
             <h3>🏆 Top Keyword Opportunities</h3>
             <div id="opportunityList"></div>
@@ -93,6 +115,10 @@
         const opportunitiesDiv = document.getElementById('opportunities');
         const debugPanel = document.getElementById('debugPanel');
         const debugOutput = document.getElementById('debugOutput');
+        const marketResearchInsightsDiv = document.getElementById('marketResearchInsights');
+        const subTopicsList = document.getElementById('subTopicsList');
+        const painPointsList = document.getElementById('painPointsList');
+        const personasList = document.getElementById('personasList');
 
         analyzeBtn.addEventListener('click', async () => {
             const payload = { 
@@ -107,6 +133,10 @@
             analyzeBtn.disabled = true;
             showStatus('Submitting analysis job...', 'info');
             opportunitiesDiv.style.display = 'none';
+            marketResearchInsightsDiv.style.display = 'none';
+            subTopicsList.innerHTML = '';
+            painPointsList.innerHTML = '';
+            personasList.innerHTML = '';
             debugPanel.style.display = 'none';
             opportunityList.innerHTML = '';
             debugOutput.textContent = '';
@@ -122,14 +152,39 @@
         });
 
         async function pollForResults(jobId) {
+            let researchDisplayed = false; 
+
             const interval = setInterval(async () => {
                 try {
                     const response = await fetch(`/api/status/${jobId}`);
                     if (!response.ok) { clearInterval(interval); throw new Error(`Status check failed`); }
                     const job = await response.json();
-                    if (job.status === 'pending' || job.status === 'processing') {
-                        showStatus(job.progress || 'Processing...', 'info');
-                    } else if (job.status === 'complete') {
+                    
+                    showStatus(job.progress || 'Processing...', 'info');
+
+                    if (!researchDisplayed && job.intermediateData && job.intermediateData.deconstruction) {
+                        const deconstruction = job.intermediateData.deconstruction;
+                        marketResearchInsightsDiv.style.display = 'block';
+
+                        deconstruction.sub_topics.forEach(item => {
+                            const li = document.createElement('li');
+                            li.textContent = item;
+                            subTopicsList.appendChild(li);
+});
+                        deconstruction.pain_points.forEach(item => {
+                            const li = document.createElement('li');
+                            li.textContent = item;
+                            painPointsList.appendChild(li);
+                        });
+                        deconstruction.personas.forEach(item => {
+                            const li = document.createElement('li');
+                            li.textContent = item;
+                            personasList.appendChild(li);
+                        });
+                        researchDisplayed = true;
+                    }
+
+                    if (job.status === 'complete') {
                         clearInterval(interval);
                         showStatus(`✅ Analysis Complete! Found ${job.data.opportunities.length} relevant opportunities.`, 'info');
                         displayResults(job.data);
@@ -150,6 +205,7 @@
         
         function displayResults(data) {
             updateOpportunities(data.opportunities);
+
             if (data.debug) {
                 debugPanel.style.display = 'block';
                 let debugText = "--- Topic Deconstruction ---\n" + JSON.stringify(data.debug.deconstruction, null, 2);
@@ -248,19 +304,13 @@
             const oppItem = document.getElementById(`opp-${index}`);
             const button = oppItem.querySelector('.geo-insights-btn');
             const container = document.getElementById(`geo-${index}`);
-            
-            // --- THIS IS THE FIX ---
-            // We're going back to sending the KEYWORD, not the category.
             const keyword = oppItem.dataset.keyword;
-
             button.disabled = true;
             button.textContent = 'Fetching...';
-
             try {
                 const response = await fetch('/api/geo-insights', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    // Send the 'keyword' in the body
                     body: JSON.stringify({ keyword })
                 });
                 if (!response.ok) throw new Error('Server error');

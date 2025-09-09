@@ -111,35 +111,49 @@ async function performFullAnalysis(jobId, options) {
     const apiKey = process.env.AHREFS_API_KEY;
     let deconstructionResult, seedKeywords, finalOpportunities = [], finalKeywordData = [], analyzedKeywordsForDebug = [];
     try {
-        jobs[jobId].status = 'processing'; jobs[jobId].progress = 'Initializing...';
+        jobs[jobId].status = 'processing';
+        jobs[jobId].progress = 'Initializing...';
+        
         if (!(await testOpenAI())) throw new Error('AI service unavailable.');
-        jobs[jobId].progress = `Deconstructing topic: "${topic}"...`;
+        
+        jobs[jobId].progress = `🧠 Deconstructing topic: "${topic}"...`;
         deconstructionResult = await deconstructTopicWithAI(topic, targetProduct);
         if (!deconstructionResult) throw new Error('Failed to deconstruct the topic with AI.');
-        jobs[jobId].progress = 'Generating seed keywords...';
+
+        // --- NEW: Save intermediate results to the job object ---
+        jobs[jobId].intermediateData = { deconstruction: deconstructionResult };
+        
+        jobs[jobId].progress = '🌱 Generating seed keywords...';
         seedKeywords = await generateSeedKeywordsWithAI(deconstructionResult, targetProduct);
         if (seedKeywords.length === 0) { throw new Error('AI failed to generate seed keywords.'); }
-        jobs[jobId].progress = `Fetching keywords from Ahrefs for ${seedKeywords.length} seed(s)...`;
+        
+        jobs[jobId].progress = `📡 Fetching keywords from Ahrefs for ${seedKeywords.length} seed(s)...`;
         const keywordsUrl = 'https://api.ahrefs.com/v3/keywords-explorer/matching-terms';
         const response = await axios.get(keywordsUrl, { headers: { 'Authorization': `Bearer ${apiKey}` }, params: { keywords: seedKeywords.join(','), country, limit: parseInt(keywordLimit), order_by: 'volume:desc', select: 'keyword,volume,difficulty,cpc' }});
         let keywordData = response.data.keywords || [];
         finalKeywordData = keywordData;
         if (keywordData.length === 0) { throw new Error('Ahrefs returned no keywords for the generated seed ideas.'); }
+        
         keywordData = keywordData.map(kw => ({ ...kw, keyword_difficulty: kw.difficulty }));
+        
         let analyzedKeywords = [];
         for (const [i, keyword] of keywordData.entries()) {
-            jobs[jobId].progress = `Strategically analyzing keyword ${i + 1} of ${keywordData.length}...`;
+            jobs[jobId].progress = `🔬 Strategically analyzing keyword ${i + 1} of ${keywordData.length}...`;
             if (!keyword.volume || keyword.volume < parseInt(minVolume)) continue;
             if (keyword.keyword.trim().split(/\s+/).length === 1) continue;
-            const analysis = await evaluateKeywordWithAI(keyword.keyword, targetProduct);
+            
+            const analysis = await evaluateKeywordWithAI(keyword.keyword, targetProduct, deconstructionResult);
             if (!analysis) continue;
+            
             analysis.aiPowered = true;
             analyzedKeywords.push({ ...keyword, aiAnalysis: analysis });
         }
+        
         analyzedKeywords.sort((a, b) => calculateStrategicScore(a, null, a.aiAnalysis) - calculateStrategicScore(b, null, b.aiAnalysis));
         analyzedKeywordsForDebug = analyzedKeywords.slice(0, 20);
+        
         for (const [i, keyword] of analyzedKeywords.slice(0, parseInt(resultsLimit)).entries()) {
-            jobs[jobId].progress = `Generating strategic angle ${i + 1} of ${resultsLimit}...`;
+            jobs[jobId].progress = `✨ Generating strategic angle ${i + 1} of ${resultsLimit}...`;
             let sagePosition = null;
             try {
                 const serpUrl = 'https://api.ahrefs.com/v3/serp-overview/serp-overview';
@@ -147,6 +161,7 @@ async function performFullAnalysis(jobId, options) {
                 const sageResult = sageResponse.data.positions?.find(r => r.url?.includes('sage.com'));
                 if (sageResult) sagePosition = sageResult.position;
             } catch (error) { console.warn(`⚠️ SERP check error`); }
+            
             const score = calculateStrategicScore(keyword, sagePosition, keyword.aiAnalysis);
             if (score >= 25) {
                 keyword.aiAnalysis.strategicContext = await generateStrategicContext(keyword.keyword, keyword.aiAnalysis);
